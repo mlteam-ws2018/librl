@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+from copy import deepcopy
+
+"""
+@author: fvanmaele
+@package: librl
+
+The following algorithms implement tabular methods for MDPs with a small, 
+finite state space.
+"""
+
+"""
+@brief Tabular TD(0) algorithm
+@param state An array representing the last state. The dimension of X depends
+on the MDP.
+@param state_next An array representing the next state.
+@param reward A real number associated to the state transition.
+@param V A dict representing the current value function estimate (real) 
+for each state. The size of the array V is equal to the amount of possible
+states in the MDP.
+@param step_size Small non-negative real numbers chosen by the user. For an
+optimal choice of step size, see [Szepesvári 2009, p.20]. (Example: c/sqrt(t),
+with t the current step and \f$c>0\f$.)
+@param discount The discount factor in the MDP. In an episodic MDP (an MDP with
+terminal states), we often consider \f$\gamma=1\f$.
+
+The function implementing the tabular TD(0) algorithm. This function must
+be called after each transition \f$\mathcal{P}(x,a,y)=\mathcal{P_0}({y}\times
+\mathbb{R}\mid x,a)\f$. It estimates the value function V underlying some
+(fixed) policy in an MDP.
+"""
+def TD0(state, reward, state_next, V, step_size=0.05, discount=1):
+    delta = reward + discount*(V[state_next] - V[state])
+
+    # Update value estimate
+    V[state] = V[state] + step_size*delta
+    return V
+
+"""
+@briefEvery-visit Monte-Carlo
+@param reward_sequence A T-dimensional array representing the sequence 
+\f$R_1,R_2\cdots,R_T\f$ in the state-reward-sequence 
+\f$(X_0,R_1,X_1,R_2,\cdots,X_{T-1},R_T)\f$, where \f$T\f$ represents the
+length of the episode.
+@param state_sequence A T-dimensional array representing the sequence 
+\f$X_0,X_1,\cdots,X_{T-1}\f$ in the state-reward-sequence 
+\f$(X_0,R_1,X_1,R_2,\cdots,X_{T-1},R_T)\f$, where \f$T\f$ represents the
+length of the episode.
+@param V A dict representing the current value function estimate (real)
+for each state. The size of the array V is equal to the amount of possible
+states in the MDP.
+@param step_size Small non-negative real numbers chosen by the user. For an
+optimal choice of step size, see [Szepesvári 2009, p.20]. (Example: c/sqrt(t),
+with t the current step and \f$c>0\f$.)
+@param The discount factor in the MDP. In an episodic MDP (an MDP with
+terminal states), we often consider \f$\gamma=1\f$.
+
+The function that implements the every-visit Monte-Carlo algorithm to estimate
+value functions in episodic MDPs. This function must be called at the end of
+each episode with the state-reward sequence collected during the episode.
+
+Note that the algorithm as shown here has linear time- and space-complexity
+in the length of the episodes.
+
+Implementation note: use two seperate arrays, with an index shift over the
+rewards \f$R_t\f$.
+"""
+def EveryVisitMC(state_sequence, reward_sequence, V, step_size=0.05, discount=1):
+    sum = 0
+    T = len(state_sequence)
+    if T != len(reward_sequence):
+        raise ValueError('invalid history sequence')
+    
+    # empty dict holding intermediate values
+    target = dict.fromkeys(V.keys())
+    
+    # loop from T-1 to 0
+    for t in range(T-1, -1, -1):
+        state = state_sequence[t]
+        reward = reward_sequence[t]
+        
+        sum = reward + discount*sum
+        target[state] = sum
+        V[state] = V[state] + step_size*(target[state] - V[state])
+    
+    # return value estimate
+    return V
+
+"""
+@briefTabular TD(\f$\lambda\f$)
+@param Lambda The value of the hyperparameter lambda.
+@param state An array representing the last state. The dimension of X depends on the MDP.
+@param state_next An array representing the next state.
+@param reward A real number associated to the state transition.
+@param V A dict representing the current value function estimate (real) 
+for each state. The size of the array V is equal to the amount of possible
+states in the MDP.
+@param z A dict storing the eligibility traces. For \f$t=0\f$, \f$z_0=0\f$.
+@param step_size Small non-negative real numbers chosen by the user. For an
+optimal choice of step size, see [Szepesvári 2009, p.20]. (Example: c/sqrt(t),
+with t the current step and \f$c>0\f$.)
+@param discount The discount factor in the MDP. In an episodic MDP (an MDP with
+terminal states), we often consider \f$\gamma=1\f$.
+
+The function that implements the tabular \f$TD(\lambda)\f$ algorithm with replacing
+traces. This function must be called after each transition.
+"""
+def TDLambda(Lambda, state, reward, state_next, V, z, step_size=0.05, discount=1):
+    if len(z) != len(V.keys()):
+        raise ValueError('domain of eligibility trace and value function estimate mismatch')
+        
+    delta = reward + discount*V[state_next] - V[state]
+
+    # visit all states in the state space
+    for x in V.keys():
+        z[x] = discount*Lambda*z[x]
+        
+        if state == x:
+            z[x] = 1
+        V[x] = V[x] + step_size*delta*z[x]
+    
+    return (V,z)
+        

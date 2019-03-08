@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import numpy as np
+"""
+Created on Fri Mar  8 04:32:26 2019
+
+@author: fvanmaele
+@package: librl
+
+The following algorithms implement approximative methods for large (or infinite)
+state spaces
+"""
+
+"""
+@brief \f$TD(\lambda)\f$ with function approximation
+@param state An array representing the last state. The dimension of X depends
+on the MDP.
+@param state_next An array representing the next state.
+@param reward A real number associated to the state transition.
+@param w A d-dimensional array representing the parameter vector \f$\theta\f$ 
+of the linear function approximation.
+@param z An array storing the (approximated) eligibility traces. For \f$t=0\f$, \f$z_0=0\f$.
+@param f A callable (function) representing a feature extraction method. It should have the
+same dimension as the parameter vector.
+@param step_size Small non-negative real numbers chosen by the user. For an
+optimal choice of step size, see [Szepesvári 2009, p.20]. (Example: c/sqrt(t),
+with t the current step and \f$c>0\f$.)
+@param discount The discount factor in the MDP. In an episodic MDP (an MDP with
+terminal states), we often consider \f$\gamma=1\f$.
+
+The function implementing the \f$TD(\lambda)\f$ algorithm with linear function
+approximation. This function must be called after each transition.
+"""
+def TDLambdaLinFApp(Lambda, state, reward, state_next, w, z, f, step_size=0.05, discount=1):
+    # avoid numpy broadcasting
+    f_y = f(state_next)
+    f_x = f(state)
+    
+    p = len(w)
+    if len(f_y) != p or len(f_x) != p:
+        raise ValueError('parameter and feature extraction method have different dimension')
+    
+    delta = reward + discount*np.dot(w, f_y) - np.dot(w, f_x)
+    
+    # update elegibility traces and parameter
+    z = f_x + discount*Lambda*z
+    w = w + step_size*delta*z
+    
+    return (w,z)
+    
